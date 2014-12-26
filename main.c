@@ -73,19 +73,10 @@ void TIM_Init() {
 
 	TIM_TimeBaseInitTypeDef TIM_InitStructure;
 
-//	TIM_InitStructure.TIM_CounterMode = TIM_CounterMode_Up;
-//	TIM_InitStructure.TIM_Prescaler = 24 - 1;
-//	TIM_InitStructure.TIM_Period = DELAY - 1; // update event every 50 us @ 24MHz
-//	TIM_InitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
-//	TIM_InitStructure.TIM_RepetitionCounter = 0;
-//	TIM_TimeBaseInit(TIM2, &TIM_InitStructure);
-//	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-//	TIM_Cmd(TIM2, ENABLE);
-
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
 	TIM_InitStructure.TIM_CounterMode = TIM_CounterMode_Up;
 	TIM_InitStructure.TIM_Prescaler = 24 - 1;
-	TIM_InitStructure.TIM_Period = 10000 - 1;
+	TIM_InitStructure.TIM_Period = 10000 - 1; // Update event every 10000 us / 10 ms
 	TIM_InitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_InitStructure.TIM_RepetitionCounter = 0;
 	TIM_TimeBaseInit(TIM2, &TIM_InitStructure);
@@ -108,25 +99,20 @@ int main(void)
     }
 }
 
-volatile unsigned int time = 0;
 void TIM2_IRQHandler()
 {
     if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
     {
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-        ir_nec_timeout();
-//        ir_nec_state_machine();
-//        u8 bit = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_8);
-//        if (bit) {
-//        	GPIO_ResetBits(GPIOC, GPIO_Pin_8);
-//        } else {
-//        	GPIO_SetBits(GPIOC, GPIO_Pin_8);
-//        }
+        // Timeout
+        ir_nec_reset_transmission();
     }
 }
 
 void EXTI9_5_IRQHandler(void)
 {
+    static unsigned int counter;
+
     if (EXTI_GetITStatus(EXTI_Line6) != RESET)
     {
         u8 bit = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
@@ -135,16 +121,11 @@ void EXTI9_5_IRQHandler(void)
         } else {
         	GPIO_SetBits(GPIOC, GPIO_Pin_9);
         }
-        static unsigned int temp_time;
 
-        temp_time = time;
-        time = 0;
-
-        static unsigned int counter;
-        counter = TIM2->CNT;
-        TIM2->CNT = 0;
+        // Restart Timer
+        counter = TIM_GetCounter(TIM2);
+        TIM_SetCounter(TIM2, 0);
         ir_nec_state_machine(counter);
-//        printf(">%d\r\n", counter);
 
         EXTI_ClearITPendingBit(EXTI_Line6);
     }
